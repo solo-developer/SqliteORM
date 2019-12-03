@@ -15,8 +15,6 @@ namespace SqliteORM.CustomAttributes
 
         public string column_type { get; set; }
 
-        public string max_length { get; set; }
-
         public bool is_db_column { get; set; } = true;
         public bool is_nullable { get; set; } = true;
     }
