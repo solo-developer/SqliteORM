@@ -10,7 +10,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 
-namespace RDPERP.POS.Desktop.Repository.Generic
+namespace SqliteORM.Repository
 {
     public static class Context
     {

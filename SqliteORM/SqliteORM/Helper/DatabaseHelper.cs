@@ -1,9 +1,7 @@
-﻿using RDPERP.POS.Desktop.Repository.Generic;
+﻿using SqliteORM.Repository;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 
 namespace SqliteORM.Helper
 {
