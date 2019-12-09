@@ -99,6 +99,23 @@ namespace SqliteORM.Repository
             execute(qry.ToString());
         }
 
+        public void deleteRange(List<T> entities)
+        {
+            List<object> primaryKeyValues = getPrimaryKeyValues(entities);
+
+            if (primaryKeyValues.Count == 0)
+            {
+                return;
+            }
+
+            string primaryKeyValuesAppendedByComma = string.Join(",", primaryKeyValues);
+
+            string primaryKeyColumnName = getPrimaryKeyColumnName();
+
+            string query = $"DELETE FROM {getTableName()} WHERE {primaryKeyColumnName} IN ({primaryKeyValuesAppendedByComma})";
+            execute(query.ToString().Trim('"'));
+        }
+
         public void insertRange(List<T> entities)
         {
             StringBuilder qry = new StringBuilder();
@@ -135,9 +152,6 @@ namespace SqliteORM.Repository
                 query = query.Append(string.Format("({0}),"
                     , values));
             }
-
-            // insert into table(id,name) values (@id,@name)
-            // insert into table(name) values (@name)
 
             if (columns.ToString() != string.Empty)
             {
@@ -192,7 +206,6 @@ namespace SqliteORM.Repository
                         }
                     }
                     j++;
-
                 }
 
                 values.Remove(values.Length - 1, 1); // Remove additional comma(',')
@@ -261,7 +274,6 @@ namespace SqliteORM.Repository
                 }
 
                 values.Remove(values.Length - 1, 1); // Remove additional comma(',')
-
 
                 CommandText += $"Insert into {getTableName()}({columns}) values ({values});";
 
@@ -640,6 +652,65 @@ namespace SqliteORM.Repository
 
         }
 
+        public List<T> primaryKeyIn(List<object> values)
+        {
+            if (values.Count == 0)
+            {
+                return new List<T>();
+            }
+
+            string idsJoinedByComma = string.Join(",", values);
+
+            using (SQLiteConnection con = new SQLiteConnection(GetConnection()))
+            {
+                string primaryKeyColumnName = getPrimaryKeyColumnName();
+
+                string cmdText = $"Select * from {getTableName()} where {primaryKeyColumnName} in {idsJoinedByComma}";
+
+                con.Open();
+                SQLiteCommand cmd = new SQLiteCommand(cmdText, con);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    return new EntityMapper().Map<T>(reader).ToList();
+                }
+            }
+        }
+
+        public List<T> columnValuesIn(Expression<Func<object>> expression, List<object> values)
+        {
+            PropertyInfo pi = ((MemberExpression)((UnaryExpression)expression.Body).Operand).Member as PropertyInfo;
+
+            if (values.Count == 0)
+            {
+                return new List<T>();
+            }
+
+            string idsJoinedByComma = string.Join(",", values);
+
+            using (SQLiteConnection con = new SQLiteConnection(GetConnection()))
+            {
+                List<PropertyInfo> propertyInfos = typeof(T).GetProperties().ToList();
+
+                var property = propertyInfos.Where(a => a.Name == pi.Name).SingleOrDefault();
+
+                if (property == null)
+                {
+                    throw new Exception("Property doesnot exist.");
+                }
+
+                string columnName = property.Name;
+
+                string cmdText = $"Select * from {getTableName()} where {columnName} in {idsJoinedByComma}";
+
+                con.Open();
+                SQLiteCommand cmd = new SQLiteCommand(cmdText, con);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    return new EntityMapper().Map<T>(reader).ToList();
+                }
+            }
+        }
+
         public List<T> executeGet(string cmdText)
         {
             using (SQLiteConnection con = new SQLiteConnection(GetConnection()))
@@ -696,6 +767,46 @@ namespace SqliteORM.Repository
         {
             return entity.GetType().GetProperties()
                 .Where(p => p.CustomAttributes.FirstOrDefault(x => x.AttributeType == typeof(DbColumnAttribute)) != null).ToList();
+        }
+
+        public List<object> getPrimaryKeyValues(List<T> entities)
+        {
+            List<object> primaryKeyvalues = new List<object>();
+            foreach (T entity in entities)
+            {
+                StringBuilder values = new StringBuilder();
+
+                List<PropertyInfo> propertyInfos = getPropertyInfoList(entity);
+
+                foreach (PropertyInfo i in propertyInfos)
+                {
+                    var ca = i.GetCustomAttribute(typeof(DbColumnAttribute)) as DbColumnAttribute;
+
+                    if (ca != null)
+                    {
+                        if (ca.is_primary)
+                        {
+                            primaryKeyvalues.Add(i.GetValue(entity));
+                        }
+                    }
+                }
+            }
+            return primaryKeyvalues;
+        }
+
+        private string getPrimaryKeyColumnName()
+        {
+            List<PropertyInfo> propertyInfos = typeof(T).GetProperties().ToList();
+
+            var primarykeyColumn = propertyInfos.Where(a => (a.GetCustomAttribute(typeof(DbColumnAttribute)) as DbColumnAttribute).is_primary).FirstOrDefault();
+
+            if (primarykeyColumn == null)
+            {
+                throw new Exception("Table doesnot contain primary key column.");
+            }
+
+            string primaryKeyColumnName = primarykeyColumn.Name;
+            return primaryKeyColumnName;
         }
     }
 }
