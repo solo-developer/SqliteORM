@@ -1,4 +1,6 @@
-﻿using SqliteORM.CustomAttributes;
+﻿using FastMember;
+using RDPERP.POS.Desktop.Extensions.SqliteORM.Extensions;
+using SqliteORM.CustomAttributes;
 using SqliteORM.Dto;
 using SqliteORM.Mapper;
 using SqliteORM.Specification;
@@ -7,6 +9,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 
@@ -114,6 +117,33 @@ namespace SqliteORM.Repository
 
             string query = $"DELETE FROM {getTableName()} WHERE {primaryKeyColumnName} IN ({primaryKeyValuesAppendedByComma})";
             execute(query.ToString().Trim('"'));
+        }
+
+        public void insertRangeUsingSqlBulkCopy(List<T> entities)
+        {
+            SqliteExtensions extension = new SqliteExtensions(GetConnection());
+
+            List<string> columns = new List<string>();
+
+            T t = new T();
+            List<PropertyInfo> propertyInfos = getPropertyInfoList(t);
+
+            foreach (PropertyInfo i in propertyInfos)
+            {
+                var ca = i.GetCustomAttribute(typeof(DbColumnAttribute)) as DbColumnAttribute;
+
+                if (ca != null)
+                {
+                    columns.Add(i.Name);
+                }
+            }
+
+            using (var reader = ObjectReader.Create(entities, columns.ToArray()))
+            {
+                extension.DestinationTableName = getTableName();
+                extension.WriteToServer(reader);
+            }
+
         }
 
         public void insertRange(List<T> entities)
